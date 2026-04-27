@@ -14,8 +14,7 @@ const DEFAULT_RAFFLE = {
   whatsappNumber: '5491100000000',
   soldNumbers: [],
   reservations: [],          // { name, phone, numbers[], date, paid }
-  goalAmount: 100000,
-  raisedAmount: 0,
+
   raffleDate: '',            // ISO date string, e.g. '2026-06-15'
   heroTitle: 'pequeño guerrero 💙',
   heroDescription: 'Un sorteo con mucho amor para ayudar con los tratamientos y cuidados de nuestro ser querido.',
@@ -178,7 +177,6 @@ function renderHomePage() {
 function renderRaffleCard(r) {
   const sold = r.soldNumbers.length;
   const available = r.totalNumbers - sold;
-  const pct = r.goalAmount > 0 ? Math.min((r.raisedAmount / r.goalAmount) * 100, 100) : 0;
   const dateStr = r.raffleDate ? formatCountdownShort(r.raffleDate) : '';
   return `
     <div class="raffle-card glass fade-up" onclick="navigate('raffle','${r.id}')">
@@ -192,10 +190,6 @@ function renderRaffleCard(r) {
         <div class="raffle-card__stat"><span class="raffle-card__stat-value">${available}</span><span class="raffle-card__stat-label">Disponibles</span></div>
         <div class="raffle-card__stat"><span class="raffle-card__stat-value">${r.currency}${r.pricePerNumber.toLocaleString('es-AR')}</span><span class="raffle-card__stat-label">Por número</span></div>
         <div class="raffle-card__stat"><span class="raffle-card__stat-value">🏆 3</span><span class="raffle-card__stat-label">Premios</span></div>
-      </div>
-      <div class="raffle-card__progress">
-        <div class="raffle-card__progress-bar"><div class="raffle-card__progress-fill" style="width:${pct}%"></div></div>
-        <span class="raffle-card__progress-text">${Math.round(pct)}% recaudado</span>
       </div>
       <div class="raffle-card__cta"><span>Ver sorteo →</span></div>
     </div>`;
@@ -290,18 +284,7 @@ function renderRafflePage(r) {
       </div>
     </section>
 
-    <section class="progress-section">
-      <div class="container container--narrow">
-        <div class="progress-card glass fade-up">
-          <div class="progress-card__header">
-            <div class="progress-card__amount">Recaudado: <span>${r.currency}${r.raisedAmount.toLocaleString('es-AR')}</span></div>
-            <div class="progress-card__goal">Meta: ${r.currency}${r.goalAmount.toLocaleString('es-AR')}</div>
-          </div>
-          <div class="progress-bar"><div class="progress-bar__fill" id="progress-fill" style="width:0%;"></div></div>
-          <div class="progress-card__info"><span id="progress-percent">0%</span><span>¡Cada aporte suma! 💪</span></div>
-        </div>
-      </div>
-    </section>
+
 
     <section class="about" id="historia">
       <div class="container container--narrow">
@@ -403,7 +386,7 @@ function renderRafflePage(r) {
 
 function initRafflePage(raffle) {
   initParticles(); initNavbar(); initMobileMenu();
-  initRaffleGrid(raffle); initProgressBarForRaffle(raffle);
+  initRaffleGrid(raffle);
   initScrollAnimations(); initCountUp(); initModal();
   if (raffle.raffleDate) initCountdown(raffle.raffleDate);
 }
@@ -552,12 +535,7 @@ function updateSelectionSummary() {
   cntEl.textContent = `${state.selectedNumbers.length} número${state.selectedNumbers.length > 1 ? 's' : ''}`;
 }
 
-function initProgressBarForRaffle(raffle) {
-  const fill = document.getElementById('progress-fill'); if (!fill) return;
-  const pct = raffle.goalAmount > 0 ? Math.min((raffle.raisedAmount / raffle.goalAmount) * 100, 100) : 0;
-  setTimeout(() => { fill.style.width = `${pct}%`; }, 500);
-  const pe = document.getElementById('progress-percent'); if (pe) pe.textContent = `${Math.round(pct)}%`;
-}
+
 
 // ---- Modal ----
 function initModal() {
@@ -744,10 +722,7 @@ function editRaffle(id) {
             <div class="form-group"><label>💰 Precio por número</label><input type="number" id="ed-price" value="${r.pricePerNumber}" min="1" /></div>
             <div class="form-group"><label>🔢 Total de números</label><input type="number" id="ed-total" value="${r.totalNumbers}" min="1" max="999" /></div>
           </div>
-          <div class="admin-row">
-            <div class="form-group"><label>🎯 Meta</label><input type="number" id="ed-goal" value="${r.goalAmount}" min="0" /></div>
-            <div class="form-group"><label>💵 Recaudado</label><input type="number" id="ed-raised" value="${r.raisedAmount}" min="0" /></div>
-          </div>
+
           <div class="form-group"><label>📅 Fecha del sorteo</label><input type="date" id="ed-date" value="${r.raffleDate || ''}" /><small style="color:var(--text-muted);">Activa el countdown en la página</small></div>
         </div>
         <div class="admin-tab-content" id="edit-tab-textos">
@@ -811,8 +786,6 @@ function saveRaffleEdit(id) {
   r.name = document.getElementById('ed-name')?.value || r.name;
   r.pricePerNumber = parseInt(document.getElementById('ed-price')?.value) || r.pricePerNumber;
   r.totalNumbers = parseInt(document.getElementById('ed-total')?.value) || r.totalNumbers;
-  r.goalAmount = parseInt(document.getElementById('ed-goal')?.value) || r.goalAmount;
-  r.raisedAmount = parseInt(document.getElementById('ed-raised')?.value) || 0;
   r.raffleDate = document.getElementById('ed-date')?.value || '';
   r.heroTitle = document.getElementById('ed-heroTitle')?.value || r.heroTitle;
   r.heroDescription = document.getElementById('ed-heroDesc')?.value || r.heroDescription;
