@@ -597,13 +597,51 @@ function initNavbar() {
   const navbar = document.getElementById('navbar');
   if (!navbar) return;
   window.addEventListener('scroll', () => navbar.classList.toggle('scrolled', window.scrollY > 50));
+
+  // Smooth scroll para los links de anclaje del navbar (evita que el router los intercepte)
+  navbar.querySelectorAll('a[href^="#"]').forEach(link => {
+    const href = link.getAttribute('href');
+    // Si el href es solo "#" o no empieza con "#sorteo/" lo tratamos como anchor interno
+    if (href === '#' || href.startsWith('#sorteo/')) return;
+    link.addEventListener('click', e => {
+      e.preventDefault();
+      const target = document.querySelector(href);
+      if (target) {
+        const offset = navbar.offsetHeight + 8;
+        const top = target.getBoundingClientRect().top + window.scrollY - offset;
+        window.scrollTo({ top, behavior: 'smooth' });
+      }
+    });
+  });
 }
 
 function initMobileMenu() {
   const btn = document.getElementById('mobile-menu-btn'), menu = document.getElementById('mobile-menu');
   if (!btn || !menu) return;
+  const navbar = document.getElementById('navbar');
+
   btn.addEventListener('click', () => { btn.classList.toggle('active'); menu.classList.toggle('open'); document.body.style.overflow = menu.classList.contains('open') ? 'hidden' : ''; });
-  menu.querySelectorAll('.mobile-menu__link, .mobile-menu__cta').forEach(l => l.addEventListener('click', () => { btn.classList.remove('active'); menu.classList.remove('open'); document.body.style.overflow = ''; }));
+
+  menu.querySelectorAll('.mobile-menu__link, .mobile-menu__cta').forEach(l => {
+    l.addEventListener('click', () => {
+      btn.classList.remove('active'); menu.classList.remove('open'); document.body.style.overflow = '';
+    });
+  });
+
+  // Smooth scroll para los links de anclaje del menú mobile
+  menu.querySelectorAll('a[href^="#"]').forEach(link => {
+    const href = link.getAttribute('href');
+    if (href === '#' || href.startsWith('#sorteo/')) return;
+    link.addEventListener('click', e => {
+      e.preventDefault();
+      const target = document.querySelector(href);
+      if (target) {
+        const offset = (navbar ? navbar.offsetHeight : 0) + 8;
+        const top = target.getBoundingClientRect().top + window.scrollY - offset;
+        window.scrollTo({ top, behavior: 'smooth' });
+      }
+    });
+  });
 }
 
 function initScrollAnimations() {
