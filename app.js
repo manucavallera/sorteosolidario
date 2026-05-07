@@ -212,6 +212,7 @@ function navigate(view, raffleId) {
 
 function handleHashChange() {
   const hash = window.location.hash.replace('#', '');
+
   if (hash.startsWith('sorteo/')) {
     const id = hash.replace('sorteo/', '');
     const raffle = APP.raffles.find(r => r.id === id);
@@ -224,6 +225,20 @@ function handleHashChange() {
       return;
     }
   }
+
+  // Si el hash corresponde a una sección en el DOM (ej: #historia, #premios)
+  // y estamos en una página de sorteo, scroll suave en vez de navegar a home
+  if (hash && state.currentView === 'raffle') {
+    const target = document.getElementById(hash);
+    if (target) {
+      const navbar = document.getElementById('navbar');
+      const offset = navbar ? navbar.offsetHeight + 8 : 8;
+      const top = target.getBoundingClientRect().top + window.scrollY - offset;
+      window.scrollTo({ top, behavior: 'smooth' });
+      return;
+    }
+  }
+
   state.currentView = 'home';
   state.currentRaffleId = null;
   render();
