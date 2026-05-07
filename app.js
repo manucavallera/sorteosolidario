@@ -362,12 +362,12 @@ function renderRafflePage(r) {
   return `
     <nav class="navbar" id="navbar">
       <div class="container">
-        <a href="#" class="navbar__logo" onclick="navigate('home'); return false;"><span class="navbar__logo-icon">💙</span><div class="navbar__logo-text"><span>${r.name}</span></div></a>
+        <a href="javascript:void(0)" class="navbar__logo" onclick="navigate('home')"><span class="navbar__logo-icon">💙</span><div class="navbar__logo-text"><span>${r.name}</span></div></a>
         <div class="navbar__links">
-          <a href="#historia" class="navbar__link">Historia</a>
-          <a href="#sorteo-section" class="navbar__link">Números</a>
-          <a href="#premios" class="navbar__link">Premios</a>
-          <a href="#como-funciona" class="navbar__link">¿Cómo funciona?</a>
+          <a href="javascript:void(0)" class="navbar__link" onclick="scrollToSection('historia')">Historia</a>
+          <a href="javascript:void(0)" class="navbar__link" onclick="scrollToSection('sorteo-section')">Números</a>
+          <a href="javascript:void(0)" class="navbar__link" onclick="scrollToSection('premios')">Premios</a>
+          <a href="javascript:void(0)" class="navbar__link" onclick="scrollToSection('como-funciona')">¿Cómo funciona?</a>
         </div>
         <div style="display:flex;gap:8px;align-items:center;">
           <button class="btn btn--outline" style="padding:8px 16px;font-size:0.8rem;" onclick="shareRaffle('${r.id}')">🔗 Compartir</button>
@@ -377,12 +377,12 @@ function renderRafflePage(r) {
       </div>
     </nav>
     <div class="mobile-menu" id="mobile-menu">
-      <a href="#" class="mobile-menu__link" onclick="navigate('home'); return false;">← Volver al inicio</a>
-      <a href="#historia" class="mobile-menu__link">Historia</a>
-      <a href="#sorteo-section" class="mobile-menu__link">Números</a>
-      <a href="#premios" class="mobile-menu__link">Premios</a>
+      <a href="javascript:void(0)" class="mobile-menu__link" onclick="navigate('home')">← Volver al inicio</a>
+      <a href="javascript:void(0)" class="mobile-menu__link" onclick="scrollToSection('historia')">Historia</a>
+      <a href="javascript:void(0)" class="mobile-menu__link" onclick="scrollToSection('sorteo-section')">Números</a>
+      <a href="javascript:void(0)" class="mobile-menu__link" onclick="scrollToSection('premios')">Premios</a>
       <button class="mobile-menu__link" style="background:none;border:none;color:inherit;font:inherit;cursor:pointer;" onclick="shareRaffle('${r.id}')">🔗 Compartir sorteo</button>
-      <a href="#sorteo-section" class="mobile-menu__cta">🎟️ Participar ahora</a>
+      <a href="javascript:void(0)" class="mobile-menu__cta" onclick="scrollToSection('sorteo-section')">🎟️ Participar ahora</a>
     </div>
 
     <section class="hero" id="inicio">
@@ -608,26 +608,24 @@ function initParticles() {
   }
 }
 
+function scrollToSection(id) {
+  const target = document.getElementById(id);
+  if (!target) return;
+  const navbar = document.getElementById('navbar');
+  const offset = navbar ? navbar.offsetHeight + 8 : 8;
+  const top = target.getBoundingClientRect().top + window.scrollY - offset;
+  window.scrollTo({ top, behavior: 'smooth' });
+  // Cerrar menú mobile si estaba abierto
+  const menu = document.getElementById('mobile-menu');
+  const btn = document.getElementById('mobile-menu-btn');
+  if (menu) { menu.classList.remove('open'); document.body.style.overflow = ''; }
+  if (btn) btn.classList.remove('active');
+}
+
 function initNavbar() {
   const navbar = document.getElementById('navbar');
   if (!navbar) return;
   window.addEventListener('scroll', () => navbar.classList.toggle('scrolled', window.scrollY > 50));
-
-  // Smooth scroll para los links de anclaje del navbar (evita que el router los intercepte)
-  navbar.querySelectorAll('a[href^="#"]').forEach(link => {
-    const href = link.getAttribute('href');
-    // Si el href es solo "#" o no empieza con "#sorteo/" lo tratamos como anchor interno
-    if (href === '#' || href.startsWith('#sorteo/')) return;
-    link.addEventListener('click', e => {
-      e.preventDefault();
-      const target = document.querySelector(href);
-      if (target) {
-        const offset = navbar.offsetHeight + 8;
-        const top = target.getBoundingClientRect().top + window.scrollY - offset;
-        window.scrollTo({ top, behavior: 'smooth' });
-      }
-    });
-  });
 }
 
 function initMobileMenu() {
