@@ -731,7 +731,7 @@ ul {
 }
 
 .raffle__search:focus {
-  border-color: var(--primary);
+  border-color: #00D4AA;
 }
 
 .raffle__search-wrapper {
@@ -776,7 +776,7 @@ ul {
 }
 
 .raffle__legend-dot--selected {
-  background: var(--primary);
+  background: linear-gradient(135deg, #00D4AA 0%, #00FFCC 100%);
 }
 
 .raffle__legend-dot--sold {
@@ -792,7 +792,7 @@ ul {
   overflow-y: auto;
   padding: 4px;
   scrollbar-width: thin;
-  scrollbar-color: var(--primary) var(--bg-card);
+  scrollbar-color: #00D4AA var(--bg-card);
 }
 
 .raffle__grid::-webkit-scrollbar {
@@ -805,7 +805,7 @@ ul {
 }
 
 .raffle__grid::-webkit-scrollbar-thumb {
-  background: var(--primary);
+  background: #00D4AA;
   border-radius: 3px;
 }
 
@@ -814,35 +814,45 @@ ul {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--bg-card);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: #1e2028;
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: var(--radius-sm);
   font-size: 0.85rem;
   font-weight: 600;
+  color: #d0d2e0;
   cursor: pointer;
   transition: all var(--transition-fast);
   user-select: none;
 }
 
 .raffle__number:hover:not(.raffle__number--sold) {
-  background: var(--bg-card-hover);
-  border-color: var(--primary);
+  background: #2a2d38;
+  border-color: #00D4AA;
+  color: #fff;
   transform: scale(1.05);
 }
 
 .raffle__number--selected {
-  background: var(--primary) !important;
-  border-color: var(--primary-light) !important;
-  color: white;
-  box-shadow: 0 0 12px rgba(108, 99, 255, 0.4);
+  background: linear-gradient(135deg, #00D4AA 0%, #00FFCC 100%) !important;
+  border-color: #00FFCC !important;
+  color: #0a2e28;
+  font-weight: 800;
+  box-shadow: 0 0 0 2px #00D4AA, 0 0 18px rgba(0, 212, 170, 0.65);
+  transform: scale(1.08);
+  text-shadow: none;
 }
 
 .raffle__number--sold {
   background: rgba(255, 255, 255, 0.03);
   color: var(--text-muted);
-  cursor: not-allowed;
-  opacity: 0.4;
+  cursor: pointer;
+  opacity: 0.45;
   text-decoration: line-through;
+}
+
+.raffle__number--sold:hover {
+  opacity: 0.7;
+  border-color: rgba(255, 255, 255, 0.15);
 }
 
 /* Selection summary */

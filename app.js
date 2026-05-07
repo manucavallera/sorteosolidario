@@ -1,9 +1,9 @@
 /* ============================================
    SORTEO SOLIDARIO - Multi-Raffle App
-   v3 - Buyers, Countdown, Share, Winner Draw
+   v4 - Firebase Firestore + Real-time sync
    ============================================ */
 
-// ---- Data Layer ----
+// ---- Defaults ----
 const DEFAULT_RAFFLE = {
   id: '',
   name: 'Nuevo Sorteo',
@@ -13,15 +13,14 @@ const DEFAULT_RAFFLE = {
   currency: '$',
   whatsappNumber: '5491100000000',
   soldNumbers: [],
-  reservations: [],          // { name, phone, numbers[], date, paid }
-
-  raffleDate: '',            // ISO date string, e.g. '2026-06-15'
+  reservations: [],
+  raffleDate: '',
   heroTitle: 'pequeño guerrero 💙',
-  heroDescription: 'Un sorteo con mucho amor para ayudar con los tratamientos y cuidados de nuestro ser querido.',
+  heroDescription: 'Gracias por unirte a este grupo de sorteos, realizados para solventar gastos médicos de mi hijo Gadiel Cavallera. Nació con Hidrocefalia severa, tiene epilepsia refractaria, autismo y retraso madurativo.',
   storyTitle: 'Un guerrero de verdad',
-  storyText1: 'Nuestro pequeño es un luchador incansable que inspira a toda la familia.',
-  storyText2: 'Los tratamientos y cuidados que necesita son costosos. Por eso organizamos este sorteo solidario.',
-  storyQuote: 'Cada número que comprás no es solo una chance de ganar un premio, es un acto de amor.',
+  storyText1: 'Gadiel nació con Hidrocefalia severa, tiene epilepsia refractaria, autismo y retraso madurativo. Es un luchador incansable que inspira a toda la familia con su valentía.',
+  storyText2: 'Los tratamientos y cuidados que necesita son costosos. Por eso organizamos este sorteo solidario para solventar sus gastos médicos.',
+  storyQuote: 'Cada número que comprás no es solo una chance de ganar un premio, es un acto de amor. ¡Gracias por sumarte! 💙',
   prize1Title: 'Premio Principal',
   prize1Desc: 'Completá con los detalles del premio',
   prize2Title: 'Segundo Premio',
@@ -42,38 +41,146 @@ function generateId() {
   return 'r_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
 }
 
-function loadAppData() {
+// ============================================
+// FIREBASE / FIRESTORE LAYER
+// ============================================
+let db = null;
+let _firestoreConfigured = false;
+let _raffleListeners = {};  // raffleId → unsubscribe fn
+
+function initFirebase() {
+  try {
+    if (
+      typeof firebase !== 'undefined' &&
+      typeof FIREBASE_CONFIG !== 'undefined' &&
+      FIREBASE_CONFIG.apiKey !== 'REEMPLAZAR'
+    ) {
+      firebase.initializeApp(FIREBASE_CONFIG);
+      db = firebase.firestore();
+      _firestoreConfigured = true;
+      console.log('✅ Firebase conectado');
+    } else {
+      console.warn('⚠️ Firebase no configurado — usando localStorage');
+    }
+  } catch (e) {
+    console.warn('Firebase init error:', e);
+  }
+}
+
+// ---- Guardar en Firestore ----
+async function saveToFirestore(data) {
+  if (!db) return;
+  try {
+    // Guardar config global
+    await db.collection('config').doc('main').set({
+      adminPassword: data.adminPassword,
+      globalTitle:   data.globalTitle,
+      globalSubtitle: data.globalSubtitle,
+    });
+    // Guardar cada sorteo
+    for (const raffle of data.raffles) {
+      await db.collection('raffles').doc(raffle.id).set(raffle);
+    }
+  } catch (e) {
+    console.warn('Error guardando en Firestore:', e);
+  }
+}
+
+// ---- Cargar desde Firestore ----
+async function loadFromFirestore() {
+  if (!db) return null;
+  try {
+    const [configSnap, rafflesSnap] = await Promise.all([
+      db.collection('config').doc('main').get(),
+      db.collection('raffles').orderBy('createdAt').get(),
+    ]);
+    const config = configSnap.exists ? configSnap.data() : {};
+    const raffles = rafflesSnap.docs.map(doc => ({
+      ...DEFAULT_RAFFLE,
+      ...doc.data(),
+      reservations: doc.data().reservations || [],
+      soldNumbers:  doc.data().soldNumbers  || [],
+    }));
+    return { ...DEFAULT_APP_DATA, ...config, raffles };
+  } catch (e) {
+    console.warn('Error cargando desde Firestore:', e);
+    return null;
+  }
+}
+
+// ---- Listener en tiempo real para números vendidos ----
+function subscribeToRaffle(raffleId) {
+  if (!db || _raffleListeners[raffleId]) return;
+  _raffleListeners[raffleId] = db.collection('raffles').doc(raffleId)
+    .onSnapshot(doc => {
+      if (!doc.exists) return;
+      const data = doc.data();
+      const raffle = APP.raffles.find(r => r.id === raffleId);
+      if (!raffle) return;
+      const newSold = data.soldNumbers || [];
+      // Solo re-renderizar si cambiaron los vendidos
+      if (JSON.stringify(newSold) !== JSON.stringify(raffle.soldNumbers)) {
+        raffle.soldNumbers = newSold;
+        saveLocalCache(APP);
+        // Si el usuario está viendo ese sorteo, refrescar la grilla
+        if (state.currentView === 'raffle' && state.currentRaffleId === raffleId) {
+          initRaffleGrid(raffle);
+          showToast('🔄 Números actualizados en tiempo real');
+        }
+      }
+    }, err => console.warn('onSnapshot error:', err));
+}
+
+function unsubscribeAll() {
+  Object.values(_raffleListeners).forEach(unsub => unsub());
+  _raffleListeners = {};
+}
+
+// ============================================
+// LOCAL STORAGE (cache / fallback)
+// ============================================
+function saveLocalCache(data) {
+  try { localStorage.setItem('sorteo_app_data', JSON.stringify(data)); }
+  catch (e) { /* ignore */ }
+}
+
+function loadLocalCache() {
   try {
     const saved = localStorage.getItem('sorteo_app_data');
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      if (parsed.totalNumbers && !parsed.raffles) {
-        const migrated = { ...DEFAULT_APP_DATA };
-        migrated.adminPassword = parsed.adminPassword || 'admin123';
-        const raffle = { ...DEFAULT_RAFFLE, ...parsed, id: generateId(), createdAt: Date.now(), reservations: [] };
-        delete raffle.adminPassword;
-        migrated.raffles = [raffle];
-        saveAppData(migrated);
-        return migrated;
-      }
-      // Ensure all raffles have reservations array
-      if (parsed.raffles) {
-        parsed.raffles = parsed.raffles.map(r => ({ ...DEFAULT_RAFFLE, ...r, reservations: r.reservations || [] }));
-      }
-      return { ...DEFAULT_APP_DATA, ...parsed };
+    if (!saved) return { ...DEFAULT_APP_DATA };
+    const parsed = JSON.parse(saved);
+    // Migración de versión antigua (formato sin raffles[])
+    if (parsed.totalNumbers && !parsed.raffles) {
+      const migrated = { ...DEFAULT_APP_DATA };
+      migrated.adminPassword = parsed.adminPassword || 'admin123';
+      const raffle = { ...DEFAULT_RAFFLE, ...parsed, id: generateId(), createdAt: Date.now(), reservations: [] };
+      delete raffle.adminPassword;
+      migrated.raffles = [raffle];
+      return migrated;
     }
-  } catch (e) { console.warn('Error loading data:', e); }
-  return { ...DEFAULT_APP_DATA };
+    if (parsed.raffles) {
+      parsed.raffles = parsed.raffles.map(r => ({ ...DEFAULT_RAFFLE, ...r, reservations: r.reservations || [] }));
+    }
+    return { ...DEFAULT_APP_DATA, ...parsed };
+  } catch (e) {
+    return { ...DEFAULT_APP_DATA };
+  }
 }
 
+// ---- saveAppData: guarda en Firestore + cache local ----
 function saveAppData(data) {
-  try { localStorage.setItem('sorteo_app_data', JSON.stringify(data)); }
-  catch (e) { console.warn('Error saving data:', e); }
+  saveLocalCache(data);
+  if (_firestoreConfigured) {
+    saveToFirestore(data).catch(e => console.warn('saveToFirestore error:', e));
+  }
 }
 
-let APP = loadAppData();
+// ---- APP se inicializa desde cache local; Firestore la sobreescribe al cargar ----
+let APP = loadLocalCache();
 
-// ---- State ----
+// ============================================
+// STATE
+// ============================================
 const state = {
   currentView: 'home',
   currentRaffleId: null,
@@ -86,12 +193,21 @@ let _countdownInterval = null;
 // ---- Router ----
 function navigate(view, raffleId) {
   clearCountdown();
+  // Desuscribir listeners anteriores si cambiamos de sorteo
+  if (state.currentRaffleId && state.currentRaffleId !== raffleId) {
+    if (_raffleListeners[state.currentRaffleId]) {
+      _raffleListeners[state.currentRaffleId]();
+      delete _raffleListeners[state.currentRaffleId];
+    }
+  }
   state.currentView = view;
   state.currentRaffleId = raffleId || null;
   state.selectedNumbers = [];
   window.location.hash = view === 'raffle' && raffleId ? `sorteo/${raffleId}` : '';
   render();
   window.scrollTo(0, 0);
+  // Suscribir en tiempo real al sorteo que se está viendo
+  if (view === 'raffle' && raffleId) subscribeToRaffle(raffleId);
 }
 
 function handleHashChange() {
@@ -104,6 +220,7 @@ function handleHashChange() {
       state.currentRaffleId = id;
       state.selectedNumbers = [];
       render();
+      subscribeToRaffle(id);
       return;
     }
   }
@@ -112,7 +229,20 @@ function handleHashChange() {
   render();
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+  // 1. Inicializar Firebase
+  initFirebase();
+
+  // 2. Si Firebase está configurado, cargar datos reales desde Firestore
+  if (_firestoreConfigured) {
+    const firestoreData = await loadFromFirestore();
+    if (firestoreData) {
+      APP = firestoreData;
+      saveLocalCache(APP);
+    }
+  }
+
+  // 3. Arrancar la app
   window.addEventListener('hashchange', handleHashChange);
   handleHashChange();
   initAdminFab();
@@ -149,7 +279,7 @@ function renderHomePage() {
       <div class="hero__particles" id="hero-particles"></div>
       <div class="hero__content">
         <div class="hero__badge"><span>✨</span> <span>${APP.globalTitle}</span></div>
-        <h1 class="hero__title">Ayudemos juntos a nuestro<br /><span class="hero__title-gradient">pequeño guerrero 💙</span></h1>
+        <h1 class="hero__title">Ayudemos juntos a este gran<br /><span class="hero__title-gradient">pequeño guerrero 💙</span></h1>
         <p class="hero__description">${APP.globalSubtitle} <strong>Elegí un sorteo y participá.</strong></p>
       </div>
       ${activeRaffles.length > 0 ? `<div class="hero__scroll-hint"><span>Deslizá</span><div class="scroll-arrow"></div></div>` : ''}
@@ -245,7 +375,7 @@ function renderRafflePage(r) {
       <div class="hero__particles" id="hero-particles"></div>
       <div class="hero__content">
         <div class="hero__badge"><span>✨</span> ${r.name}</div>
-        <h1 class="hero__title">Ayudemos juntos a nuestro<br /><span class="hero__title-gradient">${r.heroTitle}</span></h1>
+        <h1 class="hero__title">Ayudemos juntos a este gran<br /><span class="hero__title-gradient">${r.heroTitle}</span></h1>
         <p class="hero__description">${r.heroDescription} <strong>Cada número que comprás hace la diferencia.</strong></p>
         <div class="hero__buttons">
           <a href="#sorteo-section" class="btn btn--primary btn--large">🎟️ Elegí tu número</a>
@@ -376,7 +506,7 @@ function renderRafflePage(r) {
           <div class="form-group"><label for="input-phone">Teléfono / WhatsApp *</label><input type="tel" id="input-phone" placeholder="Ej: 11 2345-6789" required /></div>
           <div class="form-group"><label>Números seleccionados</label><div class="modal__selected-numbers" id="modal-numbers"></div></div>
           <div class="modal__total"><span class="modal__total-label">Total a abonar:</span><span class="modal__total-value" id="modal-total-value">$0</span></div>
-          <div class="modal__payment-info"><h4>💳 Medios de pago</h4><p>Transferencia, Mercado Pago o efectivo. Te enviamos los datos por WhatsApp al confirmar.</p></div>
+          <div class="modal__payment-info"><h4>💳 Medios de pago</h4><p>Se paga por transferencia y se manda el comprobante por privado.</p><p style="margin-top:8px;"><strong>ALIAS:</strong> GADIEL.SORTEOS</p><hr style="border-color:rgba(255,255,255,0.08);margin:10px 0;"/><p style="font-size:0.82rem;color:var(--text-muted);">📌 No se reservan números por privado · El ganador se publica en el grupo · Se sortea por lotería provincial una vez agotados todos los números.</p></div>
           <button type="submit" class="btn btn--primary btn--large modal__submit">📲 Confirmar por WhatsApp</button>
           <button type="button" class="btn btn--outline" onclick="closeModal()" style="width:100%;">Cancelar</button>
         </form>
@@ -499,15 +629,54 @@ function initRaffleGrid(raffle) {
   const grid = document.getElementById('raffle-grid');
   if (!grid) return;
   grid.innerHTML = '';
-  for (let i = 1; i <= raffle.totalNumbers; i++) {
+  for (let i = 0; i < raffle.totalNumbers; i++) {
     const btn = document.createElement('button');
     btn.className = 'raffle__number'; btn.textContent = i.toString().padStart(2, '0'); btn.dataset.number = i;
-    if (raffle.soldNumbers.includes(i)) { btn.classList.add('raffle__number--sold'); btn.disabled = true; }
-    else btn.addEventListener('click', () => toggleNumber(i, btn));
+    if (raffle.soldNumbers.includes(i)) {
+      btn.classList.add('raffle__number--sold');
+      btn.title = 'Ver quién tiene este número';
+      btn.addEventListener('click', () => showNumberOwner(i, raffle));
+    } else {
+      btn.addEventListener('click', () => toggleNumber(i, btn));
+    }
     grid.appendChild(btn);
   }
   const search = document.getElementById('raffle-search');
   if (search) search.addEventListener('input', e => { const q = e.target.value.trim(); grid.querySelectorAll('.raffle__number').forEach(b => b.style.display = (!q || b.textContent.includes(q)) ? '' : 'none'); });
+}
+
+// ---- Popup: quién tiene un número vendido ----
+function showNumberOwner(num, raffle) {
+  const res = raffle.reservations?.find(r => r.numbers.includes(num));
+  const numStr = num.toString().padStart(2, '0');
+  const existing = document.getElementById('number-owner-popup');
+  if (existing) existing.remove();
+  const popup = document.createElement('div');
+  popup.id = 'number-owner-popup';
+  popup.className = 'modal-overlay active';
+  popup.innerHTML = res ? `
+    <div class="modal glass" style="max-width:340px;text-align:center;">
+      <div style="font-size:2.5rem;margin-bottom:8px;">🎟️</div>
+      <h3 class="modal__title">Número #${numStr}</h3>
+      <div style="background:rgba(0,212,170,0.08);border:1px solid rgba(0,212,170,0.2);border-radius:12px;padding:16px;margin:16px 0;text-align:left;display:flex;flex-direction:column;gap:8px;">
+        <p><strong>👤</strong> ${res.name}</p>
+        <p><strong>📱</strong> ${res.phone}</p>
+        <p><strong>🎟️</strong> ${res.numbers.map(n => `#${n.toString().padStart(2,'0')}`).join(', ')}</p>
+        <p><strong>💰</strong> ${raffle.currency}${res.total.toLocaleString('es-AR')}</p>
+        <p><strong>${res.paid ? '✅ Pagó' : '⏳ Pendiente de pago'}</strong></p>
+        <p style="color:var(--text-muted);font-size:0.82rem;">📅 ${new Date(res.date).toLocaleDateString('es-AR')}</p>
+      </div>
+      <button class="btn btn--outline" style="width:100%;" onclick="document.getElementById('number-owner-popup').remove();document.body.style.overflow='';">Cerrar</button>
+    </div>` : `
+    <div class="modal glass" style="max-width:340px;text-align:center;">
+      <div style="font-size:2.5rem;margin-bottom:8px;">🔍</div>
+      <h3 class="modal__title">Número #${numStr}</h3>
+      <p class="modal__subtitle">Este número está marcado como vendido pero no tiene reserva registrada.</p>
+      <button class="btn btn--outline" style="width:100%;margin-top:16px;" onclick="document.getElementById('number-owner-popup').remove();document.body.style.overflow='';">Cerrar</button>
+    </div>`;
+  popup.addEventListener('click', e => { if (e.target === popup) { popup.remove(); document.body.style.overflow = ''; } });
+  document.body.appendChild(popup);
+  document.body.style.overflow = 'hidden';
 }
 
 function toggleNumber(num, btn) {
@@ -688,9 +857,20 @@ function createNewRaffle() {
 
 function deleteRaffle(id) {
   const r = APP.raffles.find(x => x.id === id); if (!r) return;
-  if (!confirm(`⚠️ ¿Eliminar "${r.name}"? Se perderán todos los datos.`)) return;
-  APP.raffles = APP.raffles.filter(x => x.id !== id); saveAppData(APP);
-  closeAdminPanel(); openAdminPanel(); render(); showToast('🗑️ Sorteo eliminado');
+  showConfirm(
+    `🗑️ ¿Eliminar "${r.name}"?`,
+    'Se perderán todos los datos del sorteo, compradores y números vendidos.',
+    async () => {
+      APP.raffles = APP.raffles.filter(x => x.id !== id);
+      saveLocalCache(APP);
+      // Eliminar de Firestore también
+      if (db) {
+        try { await db.collection('raffles').doc(id).delete(); }
+        catch(e) { console.warn('Error eliminando de Firestore:', e); }
+      }
+      closeEditRaffle(); closeAdminPanel(); openAdminPanel(); render(); showToast('🗑️ Sorteo eliminado');
+    }
+  );
 }
 
 function toggleRaffleActive(id) {
@@ -746,6 +926,7 @@ function editRaffle(id) {
         </div>
       </div>
       <div class="admin-panel__footer">
+        <button class="btn btn--danger" onclick="deleteRaffle('${r.id}')" style="margin-right:auto;">🗑️ Eliminar</button>
         <button class="btn btn--outline" onclick="closeEditRaffle()">Cancelar</button>
         <button class="btn btn--primary" onclick="saveRaffleEdit('${r.id}')">💾 Guardar</button>
       </div>
@@ -760,7 +941,7 @@ function renderEditNumbersGrid(raffle) {
   const grid = document.getElementById('admin-numbers-grid'); if (!grid) return;
   grid.innerHTML = '';
   window._editSoldNumbers = [...raffle.soldNumbers];
-  for (let i = 1; i <= raffle.totalNumbers; i++) {
+  for (let i = 0; i < raffle.totalNumbers; i++) {
     const btn = document.createElement('button'); btn.className = 'admin-number-btn'; btn.textContent = i.toString().padStart(2, '0');
     if (window._editSoldNumbers.includes(i)) btn.classList.add('admin-number-btn--sold');
     btn.addEventListener('click', () => {
@@ -813,7 +994,7 @@ function viewBuyers(id) {
 
   const reservations = r.reservations || [];
   const buyersHtml = reservations.length > 0
-    ? reservations.map((res, i) => `
+    ? reservations.map((res) => `
       <div class="buyer-row glass">
         <div class="buyer-row__info">
           <div class="buyer-row__name">${res.name}</div>
@@ -822,12 +1003,13 @@ function viewBuyers(id) {
         </div>
         <div class="buyer-row__actions">
           <button class="paid-btn ${res.paid ? 'paid-btn--paid' : ''}" onclick="togglePaid('${id}','${res.id}')">${res.paid ? '✅ Pagó' : '⏳ Pendiente'}</button>
+          ${!res.paid ? `<button class="admin-icon-btn" onclick="remindPayment('${id}','${res.id}')" title="Recordar pago por WhatsApp">📲</button>` : ''}
           <button class="admin-icon-btn admin-icon-btn--danger" onclick="deleteReservation('${id}','${res.id}')" title="Eliminar">🗑️</button>
         </div>
       </div>`).join('')
     : `<div class="empty-state" style="padding:40px 20px;"><div class="empty-state__icon">👥</div><h3 style="font-size:1.1rem;">Todavía no hay compradores</h3><p>Cuando alguien reserve un número, aparecerá acá.</p></div>`;
 
-  const paid = reservations.filter(r => r.paid).length;
+  const paid = reservations.filter(res => res.paid).length;
   overlay.innerHTML = `
     <div class="modal glass admin-panel" style="max-width:620px;max-height:90vh;">
       <div class="admin-panel__header"><h3 class="modal__title">👥 Compradores — ${r.name}</h3><button class="admin-panel__close" onclick="closeBuyers()">&times;</button></div>
@@ -838,7 +1020,10 @@ function viewBuyers(id) {
         <div class="buyers-stat"><span>${r.soldNumbers.length}</span><small>Nros vendidos</small></div>
       </div>
       <div class="buyers-list">${buyersHtml}</div>
-      <div class="admin-panel__footer"><button class="btn btn--outline" onclick="closeBuyers()">Cerrar</button></div>
+      <div class="admin-panel__footer">
+        <button class="btn btn--outline" style="font-size:0.85rem;padding:8px 16px;" onclick="exportBuyersCSV('${id}')">📊 Exportar CSV</button>
+        <button class="btn btn--outline" onclick="closeBuyers()">Cerrar</button>
+      </div>
     </div>`;
   overlay.addEventListener('click', e => { if (e.target === overlay) closeBuyers(); });
   document.body.appendChild(overlay); document.body.style.overflow = 'hidden';
@@ -860,6 +1045,45 @@ function deleteReservation(raffleId, resId) {
   const res = r.reservations?.find(x => x.id === resId);
   if (res) { r.soldNumbers = r.soldNumbers.filter(n => !res.numbers.includes(n)); r.reservations = r.reservations.filter(x => x.id !== resId); }
   saveAppData(APP); closeBuyers(); viewBuyers(raffleId); showToast('🗑️ Reserva eliminada');
+}
+
+// ---- Recordar pago por WhatsApp ----
+function remindPayment(raffleId, resId) {
+  const r = APP.raffles.find(x => x.id === raffleId); if (!r) return;
+  const res = r.reservations?.find(x => x.id === resId); if (!res) return;
+  const numbers = res.numbers.map(n => `#${n.toString().padStart(2,'0')}`).join(', ');
+  const msg = `¡Hola ${res.name}! 💙 Te recordamos que tenés pendiente el pago de los números ${numbers} del sorteo *${r.name}*.
+
+💰 *Total:* ${r.currency}${res.total.toLocaleString('es-AR')}
+🏦 *Alias:* GADIEL.SORTEOS
+
+Una vez que hagas la transferencia, mandanos el comprobante por privado. ¡Muchas gracias por tu solidaridad! 🙏`;
+  const digits = res.phone.replace(/\D/g, '');
+  const waPhone = digits.startsWith('54') ? digits : `549${digits}`;
+  window.open(`https://wa.me/${waPhone}?text=${encodeURIComponent(msg)}`, '_blank');
+}
+
+// ---- Exportar compradores a CSV ----
+function exportBuyersCSV(raffleId) {
+  const r = APP.raffles.find(x => x.id === raffleId); if (!r) return;
+  const reservations = r.reservations || [];
+  if (reservations.length === 0) { showToast('⚠️ No hay compradores para exportar'); return; }
+  const headers = ['Nombre', 'Teléfono', 'Números', 'Total', 'Estado', 'Fecha'];
+  const rows = reservations.map(res => [
+    res.name,
+    res.phone,
+    res.numbers.map(n => `#${n.toString().padStart(2,'0')}`).join(' '),
+    `${r.currency}${res.total.toLocaleString('es-AR')}`,
+    res.paid ? 'Pagó' : 'Pendiente',
+    new Date(res.date).toLocaleDateString('es-AR'),
+  ]);
+  const csv = [headers, ...rows].map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n');
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = `compradores-${r.name.replace(/\s+/g, '-')}.csv`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast('📊 CSV descargado correctamente');
 }
 
 // ---- Winner Draw ----
@@ -933,3 +1157,26 @@ function showToast(message) {
   requestAnimationFrame(() => toast.classList.add('visible'));
   setTimeout(() => { toast.classList.remove('visible'); setTimeout(() => toast.remove(), 300); }, 3000);
 }
+
+// ---- Confirm Modal ----
+function showConfirm(title, message, onConfirm) {
+  const existing = document.getElementById('confirm-overlay'); if (existing) existing.remove();
+  const overlay = document.createElement('div'); overlay.id = 'confirm-overlay'; overlay.className = 'modal-overlay active';
+  overlay.innerHTML = `
+    <div class="modal glass" style="max-width:380px;text-align:center;">
+      <div style="font-size:2.5rem;margin-bottom:12px;">⚠️</div>
+      <h3 class="modal__title" style="font-size:1.1rem;">${title}</h3>
+      <p class="modal__subtitle" style="margin-bottom:24px;">${message}</p>
+      <div style="display:flex;gap:12px;">
+        <button class="btn btn--outline" style="flex:1;" onclick="document.getElementById('confirm-overlay').remove();document.body.style.overflow='';">Cancelar</button>
+        <button class="btn btn--danger" style="flex:1;" id="confirm-ok-btn">Eliminar</button>
+      </div>
+    </div>`;
+  overlay.addEventListener('click', e => { if (e.target === overlay) { overlay.remove(); document.body.style.overflow = ''; } });
+  document.body.appendChild(overlay); document.body.style.overflow = 'hidden';
+  document.getElementById('confirm-ok-btn').addEventListener('click', () => {
+    overlay.remove(); document.body.style.overflow = '';
+    onConfirm();
+  });
+}
+
