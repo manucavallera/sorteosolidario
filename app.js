@@ -131,9 +131,36 @@ function subscribeToRaffle(raffleId) {
     }, err => console.warn('onSnapshot error:', err));
 }
 
+// ---- Listener en tiempo real para la LISTA de sorteos ----
+// Esto hace que cuando el admin crea/edita/elimina un sorteo,
+// todos los visitantes lo ven automáticamente sin recargar.
+let _raffleListListener = null;
+function subscribeToRaffleList() {
+  if (!db || _raffleListListener) return;
+  _raffleListListener = db.collection('raffles').orderBy('createdAt')
+    .onSnapshot(snapshot => {
+      const newRaffles = snapshot.docs.map(doc => ({
+        ...DEFAULT_RAFFLE,
+        ...doc.data(),
+        reservations: doc.data().reservations || [],
+        soldNumbers:  doc.data().soldNumbers  || [],
+      }));
+      // Solo actualizar si cambió algo
+      if (JSON.stringify(newRaffles) !== JSON.stringify(APP.raffles)) {
+        APP.raffles = newRaffles;
+        saveLocalCache(APP);
+        // Si el usuario está en el home, re-renderizar para mostrar nuevos sorteos
+        if (state.currentView === 'home') {
+          render();
+        }
+      }
+    }, err => console.warn('subscribeToRaffleList error:', err));
+}
+
 function unsubscribeAll() {
   Object.values(_raffleListeners).forEach(unsub => unsub());
   _raffleListeners = {};
+  if (_raffleListListener) { _raffleListListener(); _raffleListListener = null; }
 }
 
 // ============================================
@@ -244,12 +271,31 @@ function handleHashChange() {
   render();
 }
 
+// ---- Spinner de carga inicial ----
+function showLoadingSpinner() {
+  const app = document.getElementById('app');
+  if (!app) return;
+  app.innerHTML = `
+    <div style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:24px;">
+      <div style="font-size:3rem;animation:spin 1s linear infinite;">🎟️</div>
+      <p style="color:var(--text-secondary);font-size:1rem;">Cargando sorteos...</p>
+    </div>`;
+  // Inyectar la animación si no existe
+  if (!document.getElementById('spin-style')) {
+    const s = document.createElement('style');
+    s.id = 'spin-style';
+    s.textContent = '@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }';
+    document.head.appendChild(s);
+  }
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
   // 1. Inicializar Firebase
   initFirebase();
 
-  // 2. Si Firebase está configurado, cargar datos reales desde Firestore
+  // 2. Si Firebase está configurado, mostrar spinner y cargar datos reales
   if (_firestoreConfigured) {
+    showLoadingSpinner();
     const firestoreData = await loadFromFirestore();
     if (firestoreData) {
       APP = firestoreData;
@@ -261,6 +307,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   window.addEventListener('hashchange', handleHashChange);
   handleHashChange();
   initAdminFab();
+
+  // 4. Suscribir en tiempo real a la lista de sorteos
+  //    (así cuando el admin crea uno, aparece para todos sin recargar)
+  if (_firestoreConfigured) {
+    subscribeToRaffleList();
+  }
 });
 
 function clearCountdown() {
