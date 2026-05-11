@@ -83,6 +83,9 @@ async function saveToFirestore(data) {
     }
   } catch (e) {
     console.warn('Error guardando en Firestore:', e);
+    if (e.code === 'permission-denied') {
+      alert('⚠️ ATENCIÓN: Firebase está bloqueando el guardado. Los datos solo se guardaron en tu celular. Tenés que ir a Firebase -> Firestore Database -> Reglas y poner "allow read, write: if true;"');
+    }
   }
 }
 
@@ -104,6 +107,9 @@ async function loadFromFirestore() {
     return { ...DEFAULT_APP_DATA, ...config, raffles };
   } catch (e) {
     console.warn('Error cargando desde Firestore:', e);
+    if (e.code === 'permission-denied') {
+      alert('⚠️ ATENCIÓN: Firebase está bloqueando la lectura de sorteos. Nadie puede verlos. Tenés que ir a Firebase -> Firestore Database -> Reglas y poner "allow read, write: if true;"');
+    }
     return null;
   }
 }
@@ -154,7 +160,12 @@ function subscribeToRaffleList() {
           render();
         }
       }
-    }, err => console.warn('subscribeToRaffleList error:', err));
+    }, err => {
+      console.warn('subscribeToRaffleList error:', err);
+      if (err.code === 'permission-denied') {
+        console.error('Firebase Reglas bloquean lectura en tiempo real.');
+      }
+    });
 }
 
 function unsubscribeAll() {
