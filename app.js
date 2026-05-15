@@ -27,6 +27,9 @@ const DEFAULT_RAFFLE = {
   prize2Desc: 'Completá con los detalles del premio',
   prize3Title: 'Tercer Premio',
   prize3Desc: 'Completá con los detalles del premio',
+  transferAlias: 'GADIEL.SORTEOS',
+  transferCBU: '',
+  mpLink: '',
   createdAt: 0,
 };
 
@@ -577,17 +580,26 @@ function renderRafflePage(r) {
 
     <div class="modal-overlay" id="modal-overlay">
       <div class="modal glass" role="dialog">
-        <h3 class="modal__title">📲 Reservar Números</h3>
-        <p class="modal__subtitle">Completá tus datos y te enviamos la confirmación por WhatsApp</p>
-        <form class="modal__form" onsubmit="submitReservation(event)">
-          <div class="form-group"><label for="input-name">Nombre y Apellido *</label><input type="text" id="input-name" placeholder="Ej: Juan Pérez" required /></div>
-          <div class="form-group"><label for="input-phone">Teléfono / WhatsApp *</label><input type="tel" id="input-phone" placeholder="Ej: 11 2345-6789" required /></div>
-          <div class="form-group"><label>Números seleccionados</label><div class="modal__selected-numbers" id="modal-numbers"></div></div>
-          <div class="modal__total"><span class="modal__total-label">Total a abonar:</span><span class="modal__total-value" id="modal-total-value">$0</span></div>
-          <div class="modal__payment-info"><h4>💳 Medios de pago</h4><p>Se paga por transferencia y se manda el comprobante por privado.</p><p style="margin-top:8px;"><strong>ALIAS:</strong> GADIEL.SORTEOS</p><hr style="border-color:rgba(255,255,255,0.08);margin:10px 0;"/><p style="font-size:0.82rem;color:var(--text-muted);">📌 No se reservan números por privado · El ganador se publica en el grupo · Se sortea por lotería provincial una vez agotados todos los números.</p></div>
-          <button type="submit" class="btn btn--primary btn--large modal__submit">📲 Confirmar por WhatsApp</button>
-          <button type="button" class="btn btn--outline" onclick="closeModal()" style="width:100%;">Cancelar</button>
-        </form>
+        <!-- Paso 1: Datos -->
+        <div id="modal-step-1">
+          <h3 class="modal__title">📲 Reservar Números</h3>
+          <p class="modal__subtitle">Completá tus datos para reservar</p>
+          <form class="modal__form" onsubmit="submitReservation(event)">
+            <div class="form-group"><label for="input-name">Nombre y Apellido *</label><input type="text" id="input-name" placeholder="Ej: Juan Pérez" required /></div>
+            <div class="form-group"><label for="input-phone">Teléfono / WhatsApp *</label><input type="tel" id="input-phone" placeholder="Ej: 11 2345-6789" required /></div>
+            <div class="form-group"><label>Números seleccionados</label><div class="modal__selected-numbers" id="modal-numbers"></div></div>
+            <div class="modal__total"><span class="modal__total-label">Total a abonar:</span><span class="modal__total-value" id="modal-total-value">$0</span></div>
+            <button type="submit" class="btn btn--primary btn--large modal__submit">Continuar al pago →</button>
+            <button type="button" class="btn btn--outline" onclick="closeModal()" style="width:100%;">Cancelar</button>
+          </form>
+        </div>
+        <!-- Paso 2: Elegir medio de pago -->
+        <div id="modal-step-2" style="display:none;">
+          <h3 class="modal__title">💳 ¿Cómo querés pagar?</h3>
+          <p class="modal__subtitle">Total: <strong id="modal-total-value-2">$0</strong></p>
+          <div id="modal-payment-methods" style="display:flex;flex-direction:column;gap:12px;margin:20px 0;"></div>
+          <p style="font-size:0.78rem;color:var(--text-muted);text-align:center;">📌 No se reservan números sin pago · El ganador se publica en el grupo</p>
+        </div>
       </div>
     </div>`;
 }
@@ -838,7 +850,7 @@ function openCheckoutModal() {
 }
 
 function closeModal() {
-  const overlay = document.getElementById('modal-overlay'); if (overlay) { overlay.classList.remove('active'); document.body.style.overflow = ''; }
+  const overlay = document.getElementById('modal-overlay'); if (overlay) { overlay.classList.remove('active'); document.body.style.overflow = ''; resetModal(); }
 }
 
 function submitReservation(e) {
@@ -848,7 +860,6 @@ function submitReservation(e) {
   const phone = document.getElementById('input-phone').value.trim();
   if (!name || !phone) { alert('Por favor completá tu nombre y teléfono.'); return; }
 
-  // Save reservation to localStorage
   const reservation = {
     id: 'res_' + Date.now(),
     name, phone,
@@ -859,22 +870,58 @@ function submitReservation(e) {
   };
   raffle.reservations = raffle.reservations || [];
   raffle.reservations.push(reservation);
-  // Mark numbers as sold
   state.selectedNumbers.forEach(n => { if (!raffle.soldNumbers.includes(n)) raffle.soldNumbers.push(n); });
   raffle.soldNumbers.sort((a, b) => a - b);
   saveAppData(APP);
 
-  // Open WhatsApp
-  const numbers = state.selectedNumbers.map(n => `#${n.toString().padStart(2,'0')}`).join(', ');
-  const msg = encodeURIComponent(`¡Hola! 🎉 Quiero reservar números del *${raffle.name}*:\n\n👤 *Nombre:* ${name}\n📱 *Teléfono:* ${phone}\n🎟️ *Números:* ${numbers}\n💰 *Total:* ${raffle.currency}${reservation.total.toLocaleString('es-AR')}\n\n¡Gracias por la solidaridad! 💙`);
-  window.open(`https://wa.me/${raffle.whatsappNumber}?text=${msg}`, '_blank');
+  const numbers = reservation.numbers.map(n => `#${n.toString().padStart(2,'0')}`).join(', ');
+  const waMsg = encodeURIComponent(`¡Hola! 🎉 Reservé números del *${raffle.name}*:\n\n👤 *Nombre:* ${name}\n📱 *Teléfono:* ${phone}\n🎟️ *Números:* ${numbers}\n💰 *Total:* ${raffle.currency}${reservation.total.toLocaleString('es-AR')}\n\n¡Gracias por la solidaridad! 💙`);
+  const waUrl = `https://wa.me/${raffle.whatsappNumber}?text=${waMsg}`;
+  const totalStr = `${raffle.currency}${reservation.total.toLocaleString('es-AR')}`;
 
-  closeModal();
+  // Ir a paso 2: elegir medio de pago
+  document.getElementById('modal-step-1').style.display = 'none';
+  document.getElementById('modal-step-2').style.display = 'block';
+  document.getElementById('modal-total-value-2').textContent = totalStr;
+
+  const methods = document.getElementById('modal-payment-methods');
+  methods.innerHTML = '';
+
+  if (raffle.mpLink) {
+    const mpBtn = document.createElement('a');
+    mpBtn.href = raffle.mpLink;
+    mpBtn.target = '_blank';
+    mpBtn.rel = 'noopener noreferrer';
+    mpBtn.className = 'btn btn--primary btn--large';
+    mpBtn.style.cssText = 'display:flex;align-items:center;justify-content:center;gap:10px;text-decoration:none;background:linear-gradient(135deg,#009ee3,#0070b2);';
+    mpBtn.innerHTML = `<svg width="22" height="22" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0"><circle cx="20" cy="20" r="20" fill="white"/><text x="50%" y="55%" dominant-baseline="middle" text-anchor="middle" fill="#009ee3" font-size="18" font-weight="bold">MP</text></svg> Pagar con MercadoPago — ${totalStr}`;
+    mpBtn.addEventListener('click', () => { setTimeout(() => window.open(waUrl, '_blank'), 1000); });
+    methods.appendChild(mpBtn);
+  }
+
+  const alias = raffle.transferAlias || 'GADIEL.SORTEOS';
+  const cbu = raffle.transferCBU || '';
+  const transDiv = document.createElement('div');
+  transDiv.style.cssText = 'background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);border-radius:12px;padding:16px;';
+  transDiv.innerHTML = `
+    <h4 style="margin:0 0 10px;font-size:0.95rem;">🏦 Transferencia bancaria</h4>
+    <p style="margin:4px 0;font-size:0.9rem;"><strong>ALIAS:</strong> <span style="user-select:all;">${alias}</span></p>
+    ${cbu ? `<p style="margin:4px 0;font-size:0.85rem;color:var(--text-muted);word-break:break-all;"><strong>CBU:</strong> <span style="user-select:all;">${cbu}</span></p>` : ''}
+    <p style="margin:8px 0 0;font-size:0.82rem;color:var(--text-muted);">Monto exacto: <strong style="color:#00D4AA;">${totalStr}</strong></p>
+    <a href="${waUrl}" target="_blank" rel="noopener noreferrer" class="btn btn--outline" style="display:block;text-align:center;margin-top:12px;text-decoration:none;">
+      📲 Ya transferí — Confirmar por WhatsApp
+    </a>`;
+  methods.appendChild(transDiv);
+
   state.selectedNumbers = [];
   updateSelectionSummary();
-  // Refresh grid
   initRaffleGrid(raffle);
-  showToast('✅ ¡Reserva registrada! Te esperamos por WhatsApp.');
+}
+
+function resetModal() {
+  const s1 = document.getElementById('modal-step-1'), s2 = document.getElementById('modal-step-2');
+  if (s1) s1.style.display = 'block';
+  if (s2) s2.style.display = 'none';
 }
 
 function openWhatsAppRaffle() {
@@ -1018,6 +1065,11 @@ function editRaffle(id) {
           </div>
 
           <div class="form-group"><label>📅 Fecha del sorteo</label><input type="date" id="ed-date" value="${r.raffleDate || ''}" /><small style="color:var(--text-muted);">Activa el countdown en la página</small></div>
+          <hr style="border-color:rgba(255,255,255,0.06);margin:12px 0;" />
+          <h4 style="margin:0 0 10px;font-size:0.9rem;color:var(--text-muted);">💳 Medios de pago</h4>
+          <div class="form-group"><label>🔵 Link MercadoPago</label><input type="url" id="ed-mplink" value="${r.mpLink || ''}" placeholder="https://mpago.la/xxxx" /><small style="color:var(--text-muted);">Link de cobro de tu cuenta MP (dejalo vacío si no usás MP)</small></div>
+          <div class="form-group"><label>🏦 Alias transferencia</label><input type="text" id="ed-alias" value="${r.transferAlias || 'GADIEL.SORTEOS'}" placeholder="MI.ALIAS.MP" /></div>
+          <div class="form-group"><label>🏦 CBU (opcional)</label><input type="text" id="ed-cbu" value="${r.transferCBU || ''}" placeholder="0000000000000000000000" /></div>
         </div>
         <div class="admin-tab-content" id="edit-tab-textos">
           <div class="form-group"><label>🌟 Título hero</label><input type="text" id="ed-heroTitle" value="${r.heroTitle}" /></div>
@@ -1082,6 +1134,9 @@ function saveRaffleEdit(id) {
   r.pricePerNumber = parseInt(document.getElementById('ed-price')?.value) || r.pricePerNumber;
   r.totalNumbers = parseInt(document.getElementById('ed-total')?.value) || r.totalNumbers;
   r.raffleDate = document.getElementById('ed-date')?.value || '';
+  r.mpLink = document.getElementById('ed-mplink')?.value?.trim() || '';
+  r.transferAlias = document.getElementById('ed-alias')?.value?.trim() || r.transferAlias;
+  r.transferCBU = document.getElementById('ed-cbu')?.value?.trim() || '';
   r.heroTitle = document.getElementById('ed-heroTitle')?.value || r.heroTitle;
   r.heroDescription = document.getElementById('ed-heroDesc')?.value || r.heroDescription;
   r.storyTitle = document.getElementById('ed-storyTitle')?.value || r.storyTitle;
