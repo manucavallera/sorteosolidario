@@ -1105,6 +1105,7 @@ function editRaffle(id) {
       <div class="admin-panel__header"><h3 class="modal__title">✏️ ${r.name}</h3><button class="admin-panel__close" onclick="closeEditRaffle()">&times;</button></div>
       <div class="admin-panel__tabs">
         <button class="admin-tab active" onclick="switchEditTab('general',this)">General</button>
+        <button class="admin-tab" onclick="switchEditTab('pago',this)">💳 Pago</button>
         <button class="admin-tab" onclick="switchEditTab('textos',this)">Textos</button>
         <button class="admin-tab" onclick="switchEditTab('premios',this)">Premios</button>
         <button class="admin-tab" onclick="switchEditTab('numeros',this)">Números</button>
@@ -1117,11 +1118,11 @@ function editRaffle(id) {
             <div class="form-group"><label>💰 Precio por número</label><input type="number" id="ed-price" value="${r.pricePerNumber}" min="1" /></div>
             <div class="form-group"><label>🔢 Total de números</label><input type="number" id="ed-total" value="${r.totalNumbers}" min="1" max="999" /></div>
           </div>
-
           <div class="form-group"><label>📅 Fecha del sorteo</label><input type="date" id="ed-date" value="${r.raffleDate || ''}" /><small style="color:var(--text-muted);">Activa el countdown en la página</small></div>
-          <hr style="border-color:rgba(255,255,255,0.06);margin:12px 0;" />
-          <h4 style="margin:0 0 10px;font-size:0.9rem;color:var(--text-muted);">💳 Medios de pago</h4>
-          <div class="form-group"><label>🔵 Link MercadoPago</label><input type="url" id="ed-mplink" value="${r.mpLink || ''}" placeholder="https://mpago.la/xxxx" /><small style="color:var(--text-muted);">Link de cobro de tu cuenta MP (dejalo vacío si no usás MP)</small></div>
+        </div>
+        <div class="admin-tab-content" id="edit-tab-pago">
+          <p style="color:var(--text-muted);font-size:0.85rem;margin:0 0 4px;">Configurá los medios de pago que van a ver los compradores.</p>
+          <div class="form-group"><label>🔵 Link MercadoPago</label><input type="url" id="ed-mplink" value="${r.mpLink || ''}" placeholder="https://mpago.la/xxxx" /><small style="color:var(--text-muted);">Generalo en mercadopago.com.ar → Cobrar → Link de pago. Dejalo vacío para no mostrar MP.</small></div>
           <div class="form-group"><label>🏦 Alias transferencia</label><input type="text" id="ed-alias" value="${r.transferAlias || 'GADIEL.SORTEOS'}" placeholder="MI.ALIAS.MP" /></div>
           <div class="form-group"><label>🏦 CBU (opcional)</label><input type="text" id="ed-cbu" value="${r.transferCBU || ''}" placeholder="0000000000000000000000" /></div>
         </div>
