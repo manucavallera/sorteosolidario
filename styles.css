@@ -1780,9 +1780,10 @@ ul {
 }
 
 .admin-panel {
-  overflow-y: auto;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
+  max-height: 90vh;
 }
 
 .admin-panel__header {
@@ -1858,7 +1859,9 @@ ul {
 .admin-panel__body {
   flex: 1;
   overflow-y: auto;
+  overflow-x: hidden;
   margin-bottom: 16px;
+  min-height: 0;
 }
 
 .admin-panel__footer {
@@ -1979,13 +1982,29 @@ ul {
   .admin-row {
     grid-template-columns: 1fr;
   }
-  
+
   .admin-panel__footer {
     flex-direction: column;
   }
-  
+
   .admin-panel__footer .btn {
     width: 100%;
+  }
+
+  .admin-panel__tabs {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .admin-tab {
+    flex: 1 1 calc(50% - 6px);
+    text-align: center;
+    padding: 8px 8px;
+    font-size: 0.75rem;
+  }
+
+  .modal.admin-panel {
+    padding: 20px 16px;
   }
 }
 
