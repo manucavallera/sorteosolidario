@@ -531,7 +531,7 @@ function renderRafflePage(r) {
             <span class="raffle__selection-total" id="selection-total">${r.currency}0</span>
           </div>
           <div class="raffle__selection-numbers" id="selection-chips"></div>
-          <button class="btn btn--secondary btn--large raffle__checkout-btn" onclick="openCheckoutModal()">📲 Reservar por WhatsApp</button>
+          <button class="btn btn--secondary btn--large raffle__checkout-btn" onclick="openCheckoutModal()">💳 Reservar y Pagar</button>
         </div>
       </div>
     </section>
