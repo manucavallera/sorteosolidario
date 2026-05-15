@@ -600,6 +600,15 @@ function renderRafflePage(r) {
           <div id="modal-payment-methods" style="display:flex;flex-direction:column;gap:12px;margin:20px 0;"></div>
           <p style="font-size:0.78rem;color:var(--text-muted);text-align:center;">📌 No se reservan números sin pago · El ganador se publica en el grupo</p>
         </div>
+        <!-- Paso 3: Confirmación -->
+        <div id="modal-step-3" style="display:none;text-align:center;padding:8px 0;">
+          <div style="font-size:3.5rem;margin-bottom:12px;">🎉</div>
+          <h3 class="modal__title" style="color:#00D4AA;">¡Reserva confirmada!</h3>
+          <p id="modal-success-msg" class="modal__subtitle" style="margin-bottom:16px;"></p>
+          <div id="modal-success-numbers" style="display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-bottom:20px;"></div>
+          <div id="modal-success-wa" style="margin-bottom:12px;"></div>
+          <button class="btn btn--outline" onclick="closeModal()" style="width:100%;">Cerrar</button>
+        </div>
       </div>
     </div>`;
 }
@@ -888,29 +897,44 @@ function submitReservation(e) {
   methods.innerHTML = '';
 
   if (raffle.mpLink) {
-    const mpBtn = document.createElement('a');
-    mpBtn.href = raffle.mpLink;
-    mpBtn.target = '_blank';
-    mpBtn.rel = 'noopener noreferrer';
-    mpBtn.className = 'btn btn--primary btn--large';
-    mpBtn.style.cssText = 'display:flex;align-items:center;justify-content:center;gap:10px;text-decoration:none;background:linear-gradient(135deg,#009ee3,#0070b2);';
-    mpBtn.innerHTML = `<svg width="22" height="22" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0"><circle cx="20" cy="20" r="20" fill="white"/><text x="50%" y="55%" dominant-baseline="middle" text-anchor="middle" fill="#009ee3" font-size="18" font-weight="bold">MP</text></svg> Pagar con MercadoPago — ${totalStr}`;
-    mpBtn.addEventListener('click', () => { setTimeout(() => window.open(waUrl, '_blank'), 1000); });
-    methods.appendChild(mpBtn);
+    const mpSection = document.createElement('div');
+    mpSection.style.cssText = 'background:rgba(0,158,227,0.08);border:1px solid rgba(0,158,227,0.3);border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:10px;';
+    mpSection.innerHTML = `<h4 style="margin:0;font-size:0.95rem;">🔵 MercadoPago</h4>
+      <p style="margin:0;font-size:0.85rem;color:var(--text-muted);">Pagá con tarjeta, saldo MP, QR o cualquier medio disponible en MP.</p>`;
+    const mpLink = document.createElement('a');
+    mpLink.href = raffle.mpLink;
+    mpLink.target = '_blank';
+    mpLink.rel = 'noopener noreferrer';
+    mpLink.className = 'btn btn--primary';
+    mpLink.style.cssText = 'text-decoration:none;text-align:center;background:linear-gradient(135deg,#009ee3,#0070b2);';
+    mpLink.textContent = `Ir a pagar ${totalStr} →`;
+    const mpConfirm = document.createElement('button');
+    mpConfirm.className = 'btn btn--outline';
+    mpConfirm.style.cssText = 'border-color:#00D4AA;color:#00D4AA;';
+    mpConfirm.textContent = '✅ Ya pagué con MercadoPago';
+    mpConfirm.onclick = () => confirmPayment(raffle, reservation, true, 'mp', waUrl);
+    mpSection.appendChild(mpLink);
+    mpSection.appendChild(mpConfirm);
+    methods.appendChild(mpSection);
   }
 
   const alias = raffle.transferAlias || 'GADIEL.SORTEOS';
   const cbu = raffle.transferCBU || '';
   const transDiv = document.createElement('div');
-  transDiv.style.cssText = 'background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);border-radius:12px;padding:16px;';
-  transDiv.innerHTML = `
-    <h4 style="margin:0 0 10px;font-size:0.95rem;">🏦 Transferencia bancaria</h4>
-    <p style="margin:4px 0;font-size:0.9rem;"><strong>ALIAS:</strong> <span style="user-select:all;">${alias}</span></p>
+  transDiv.style.cssText = 'background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:10px;';
+  const aliasEl = document.createElement('div');
+  aliasEl.innerHTML = `
+    <h4 style="margin:0 0 8px;font-size:0.95rem;">🏦 Transferencia bancaria</h4>
+    <p style="margin:4px 0;font-size:0.9rem;"><strong>ALIAS:</strong> <span style="user-select:all;cursor:copy;" onclick="navigator.clipboard&&navigator.clipboard.writeText('${alias}')">${alias} 📋</span></p>
     ${cbu ? `<p style="margin:4px 0;font-size:0.85rem;color:var(--text-muted);word-break:break-all;"><strong>CBU:</strong> <span style="user-select:all;">${cbu}</span></p>` : ''}
-    <p style="margin:8px 0 0;font-size:0.82rem;color:var(--text-muted);">Monto exacto: <strong style="color:#00D4AA;">${totalStr}</strong></p>
-    <a href="${waUrl}" target="_blank" rel="noopener noreferrer" class="btn btn--outline" style="display:block;text-align:center;margin-top:12px;text-decoration:none;">
-      📲 Ya transferí — Confirmar por WhatsApp
-    </a>`;
+    <p style="margin:6px 0 0;font-size:0.85rem;">Monto exacto: <strong style="color:#00D4AA;">${totalStr}</strong></p>`;
+  const transConfirm = document.createElement('button');
+  transConfirm.className = 'btn btn--outline';
+  transConfirm.style.cssText = 'border-color:#00D4AA;color:#00D4AA;';
+  transConfirm.textContent = '✅ Ya hice la transferencia';
+  transConfirm.onclick = () => confirmPayment(raffle, reservation, false, 'transfer', waUrl);
+  transDiv.appendChild(aliasEl);
+  transDiv.appendChild(transConfirm);
   methods.appendChild(transDiv);
 
   state.selectedNumbers = [];
@@ -918,10 +942,40 @@ function submitReservation(e) {
   initRaffleGrid(raffle);
 }
 
+function confirmPayment(raffle, reservation, markPaid, method, waUrl) {
+  const res = raffle.reservations?.find(r => r.id === reservation.id);
+  if (res) { res.paid = markPaid; res.paymentMethod = method; saveAppData(APP); }
+  showSuccessStep(raffle, reservation, method, waUrl);
+}
+
+function showSuccessStep(raffle, reservation, method, waUrl) {
+  document.getElementById('modal-step-2').style.display = 'none';
+  const s3 = document.getElementById('modal-step-3');
+  s3.style.display = 'block';
+
+  const isMp = method === 'mp';
+  const totalStr = `${raffle.currency}${reservation.total.toLocaleString('es-AR')}`;
+  const numbersStr = reservation.numbers.map(n => `#${n.toString().padStart(2,'0')}`).join(', ');
+
+  document.getElementById('modal-success-msg').innerHTML =
+    isMp
+      ? `<strong>${reservation.name}</strong>, tu pago por MercadoPago fue registrado. ¡Gracias!<br><span style="font-size:0.85rem;color:var(--text-muted);">Números: ${numbersStr} · ${totalStr}</span>`
+      : `<strong>${reservation.name}</strong>, ¡gracias! Verificaremos tu transferencia a la brevedad.<br><span style="font-size:0.85rem;color:var(--text-muted);">Números: ${numbersStr} · ${totalStr}</span>`;
+
+  const numsContainer = document.getElementById('modal-success-numbers');
+  numsContainer.innerHTML = reservation.numbers.map(n => `<span class="modal__selected-chip">#${n.toString().padStart(2,'0')}</span>`).join('');
+
+  const waContainer = document.getElementById('modal-success-wa');
+  waContainer.innerHTML = `<a href="${waUrl}" target="_blank" rel="noopener noreferrer" style="font-size:0.82rem;color:var(--text-muted);text-decoration:none;">📲 Enviar comprobante por WhatsApp (opcional)</a>`;
+}
+
 function resetModal() {
-  const s1 = document.getElementById('modal-step-1'), s2 = document.getElementById('modal-step-2');
-  if (s1) s1.style.display = 'block';
+  const s1 = document.getElementById('modal-step-1');
+  const s2 = document.getElementById('modal-step-2');
+  const s3 = document.getElementById('modal-step-3');
+  if (s1) { s1.style.display = 'block'; s1.querySelector('form')?.reset(); }
   if (s2) s2.style.display = 'none';
+  if (s3) s3.style.display = 'none';
 }
 
 function openWhatsAppRaffle() {
