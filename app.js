@@ -363,7 +363,7 @@ function renderHomePage() {
         <h1 class="hero__title">Ayudemos juntos a este gran<br /><span class="hero__title-gradient">pequeño guerrero 💙</span></h1>
         <p class="hero__description">${APP.globalSubtitle} <strong>Elegí un sorteo y participá.</strong></p>
       </div>
-      ${activeRaffles.length > 0 ? `<div class="hero__scroll-hint"><span>Deslizá</span><div class="scroll-arrow"></div></div>` : ''}
+      ${activeRaffles.length > 0 ? `<div class="hero__scroll-hint" onclick="scrollToSection('sorteos')" style="cursor:pointer;"><span>Deslizá</span><div class="scroll-arrow"></div></div>` : ''}
     </section>
     <section class="raffles-section" id="sorteos">
       <div class="container">
@@ -463,7 +463,7 @@ function renderRafflePage(r) {
           <a href="#historia" class="btn btn--outline btn--large">Conocé su historia</a>
         </div>
       </div>
-      <div class="hero__scroll-hint"><span>Deslizá</span><div class="scroll-arrow"></div></div>
+      <div class="hero__scroll-hint" onclick="scrollToSection('sorteo-section')" style="cursor:pointer;"><span>Deslizá</span><div class="scroll-arrow"></div></div>
     </section>
 
     ${hasDate ? `
@@ -502,7 +502,7 @@ function renderRafflePage(r) {
         <h2 class="section-title fade-up">Su Historia 💙</h2>
         <p class="section-subtitle fade-up">Conocé por qué organizamos este sorteo y cómo podés ayudar</p>
         <div class="about__content fade-up">
-          <div class="about__image-wrapper"><div class="about__image-placeholder"><span>💙</span><span>Foto del niño</span></div></div>
+          <div class="about__image-wrapper"><img src="nino.jpg" alt="Foto del niño" class="about__image" loading="lazy" /></div>
           <div class="about__text">
             <h3>${r.storyTitle}</h3>
             <p>${r.storyText1}</p><p>${r.storyText2}</p>
@@ -902,7 +902,7 @@ function submitReservation(e) {
     mpSection.innerHTML = `<h4 style="margin:0;font-size:0.95rem;">🔵 MercadoPago</h4>
       <p style="margin:0;font-size:0.85rem;color:var(--text-muted);">Pagá con tarjeta, saldo MP, QR o cualquier medio disponible en MP.</p>`;
     const mpLink = document.createElement('a');
-    mpLink.href = raffle.mpLink;
+    mpLink.href = /^https?:\/\//i.test(raffle.mpLink) ? raffle.mpLink : `https://${raffle.mpLink}`;
     mpLink.target = '_blank';
     mpLink.rel = 'noopener noreferrer';
     mpLink.className = 'btn btn--primary';
